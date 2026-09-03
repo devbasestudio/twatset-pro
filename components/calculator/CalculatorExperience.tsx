@@ -3,6 +3,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {Calculator, Delete, ShieldCheck} from 'lucide-react';
 import {ExitFeeModal} from './ExitFeeModal';
+import {PaymentError} from './PaymentError';
 import {ProcessingScreen} from './ProcessingScreen';
 import {ResultPaywall} from './ResultPaywall';
 import type {Operator} from './types';
@@ -17,7 +18,7 @@ const calculate = (left: number, right: number, operator: Operator) => {
   return left / right;
 };
 
-type ExperienceStep = 'processing' | 'paywall' | 'exitFee' | null;
+type ExperienceStep = 'processing' | 'paywall' | 'paymentJoke' | 'exitFee' | null;
 
 export function CalculatorExperience() {
   const [display, setDisplay] = useState('0');
@@ -142,7 +143,7 @@ export function CalculatorExperience() {
   };
 
   const handleFakePayment = () => {
-    showToast('Parody Demo ဖြစ်တဲ့အတွက် တကယ် ငွေမဖြတ်ပါဘူး။ အဖြေကတော့ ၄ သိန်းတန်နေတုန်းပါပဲ။');
+    setStep('paymentJoke');
   };
 
   const requestPaywallClose = () => {
@@ -164,6 +165,10 @@ export function CalculatorExperience() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
   }, [clearTimers]);
 
+  const visibleDisplay = operator && leftValue !== null && display !== 'အဖြေ: ██'
+    ? `${leftValue} ${operator}${awaitingValue ? '' : ` ${display}`}`
+    : display;
+
   return (
     <main className="app-shell">
       <header className="site-header">
@@ -182,10 +187,10 @@ export function CalculatorExperience() {
 
         <div className="calculator-card" aria-label="တွက်စက်">
           <div className="calculator-topline">
-            <span>{operator && leftValue !== null ? `${leftValue} ${operator}` : 'STANDARD PLAN'}</span>
+            <span>STANDARD PLAN</span>
             <span className="secure-label"><ShieldCheck aria-hidden="true" /> SECURE</span>
           </div>
-          <output className={`calculator-display ${display.includes('██') ? 'display-locked' : ''}`} aria-live="polite">{display}</output>
+          <output className={`calculator-display ${display.includes('██') ? 'display-locked' : ''}`} aria-live="polite">{visibleDisplay}</output>
           <div className="calculator-keys">
             <button className="calculator-key key-action key-ac" type="button" onClick={clearCalculator}>AC</button>
             <button className="calculator-key key-action" type="button" aria-label="နောက်ဆုံးဂဏန်းဖျက်မယ်" onClick={deleteDigit}><Delete aria-hidden="true" /></button>
@@ -208,6 +213,13 @@ export function CalculatorExperience() {
       {toast ? <output className="calculator-toast">{toast}</output> : null}
       {step === 'processing' ? <ProcessingScreen progress={progress} expression={expression} /> : null}
       {step === 'paywall' ? <ResultPaywall onClose={requestPaywallClose} onUnlock={handleFakePayment} /> : null}
+      {step === 'paymentJoke' ? (
+        <PaymentError
+          onClose={() => setStep('exitFee')}
+          onRetry={() => setStep('paywall')}
+          onExit={() => setStep('exitFee')}
+        />
+      ) : null}
       {step === 'exitFee' ? (
         <ExitFeeModal
           attempts={exitPaymentAttempts}
