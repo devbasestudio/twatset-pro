@@ -2,6 +2,7 @@
 
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {Calculator, Delete, ShieldCheck} from 'lucide-react';
+import {ExitFeeModal} from './ExitFeeModal';
 import {ProcessingScreen} from './ProcessingScreen';
 import {ResultPaywall} from './ResultPaywall';
 import type {Operator} from './types';
@@ -16,7 +17,7 @@ const calculate = (left: number, right: number, operator: Operator) => {
   return left / right;
 };
 
-type ExperienceStep = 'processing' | 'paywall' | null;
+type ExperienceStep = 'processing' | 'paywall' | 'exitFee' | null;
 
 export function CalculatorExperience() {
   const [display, setDisplay] = useState('0');
@@ -26,6 +27,7 @@ export function CalculatorExperience() {
   const [expression, setExpression] = useState('');
   const [step, setStep] = useState<ExperienceStep>(null);
   const [progress, setProgress] = useState(0);
+  const [exitPaymentAttempts, setExitPaymentAttempts] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const acCount = useRef(0);
   const hiddenResult = useRef<number | null>(null);
@@ -48,7 +50,7 @@ export function CalculatorExperience() {
     setProgress(0);
     setStep('processing');
 
-    const stepDuration = 850;
+    const stepDuration = 1600;
     const nextTimers: ReturnType<typeof setTimeout>[] = [];
 
     for (let index = 1; index < PROCESSING_STEPS; index += 1) {
@@ -56,7 +58,7 @@ export function CalculatorExperience() {
     }
 
     nextTimers.push(
-      setTimeout(() => setStep('paywall'), PROCESSING_STEPS * stepDuration + 350),
+      setTimeout(() => setStep('paywall'), PROCESSING_STEPS * stepDuration + 700),
     );
 
     timers.current = nextTimers;
@@ -143,6 +145,15 @@ export function CalculatorExperience() {
     showToast('Parody Demo ဖြစ်တဲ့အတွက် တကယ် ငွေမဖြတ်ပါဘူး။ အဖြေကတော့ ၄ သိန်းတန်နေတုန်းပါပဲ။');
   };
 
+  const requestPaywallClose = () => {
+    setExitPaymentAttempts(0);
+    setStep('exitFee');
+  };
+
+  const handleExitPayment = () => {
+    setExitPaymentAttempts((attempts) => attempts + 1);
+  };
+
   useEffect(() => {
     document.body.style.overflow = step ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -196,7 +207,14 @@ export function CalculatorExperience() {
 
       {toast ? <output className="calculator-toast">{toast}</output> : null}
       {step === 'processing' ? <ProcessingScreen progress={progress} expression={expression} /> : null}
-      {step === 'paywall' ? <ResultPaywall onClose={() => setStep(null)} onUnlock={handleFakePayment} /> : null}
+      {step === 'paywall' ? <ResultPaywall onClose={requestPaywallClose} onUnlock={handleFakePayment} /> : null}
+      {step === 'exitFee' ? (
+        <ExitFeeModal
+          attempts={exitPaymentAttempts}
+          onPay={handleExitPayment}
+          onStay={() => setStep('paywall')}
+        />
+      ) : null}
     </main>
   );
 }
