@@ -2,16 +2,12 @@
 
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {Calculator, Delete, ShieldCheck} from 'lucide-react';
-import {AnswerDisposalModal} from './AnswerDisposalModal';
-import {DiscountModal} from './DiscountModal';
-import {ExitFeeModal} from './ExitFeeModal';
-import {FakeCheckout} from './FakeCheckout';
-import {PaymentError} from './PaymentError';
 import {ProcessingScreen} from './ProcessingScreen';
 import {ResultPaywall} from './ResultPaywall';
-import type {ClosableStep, FlowStep, Operator} from './types';
+import type {Operator} from './types';
 
 const DIGITS = ['7', '8', '9', '4', '5', '6', '1', '2', '3'];
+const PROCESSING_STEPS = 8;
 
 const calculate = (left: number, right: number, operator: Operator) => {
   if (operator === '+') return left + right;
@@ -20,16 +16,15 @@ const calculate = (left: number, right: number, operator: Operator) => {
   return left / right;
 };
 
+type ExperienceStep = 'processing' | 'paywall' | null;
+
 export function CalculatorExperience() {
   const [display, setDisplay] = useState('0');
   const [leftValue, setLeftValue] = useState<number | null>(null);
   const [operator, setOperator] = useState<Operator | null>(null);
   const [awaitingValue, setAwaitingValue] = useState(false);
   const [expression, setExpression] = useState('');
-  const [step, setStep] = useState<FlowStep>(null);
-  const [closeReturn, setCloseReturn] = useState<ClosableStep>('paywall');
-  const [discounted, setDiscounted] = useState(false);
-  const [countdown, setCountdown] = useState(29);
+  const [step, setStep] = useState<ExperienceStep>(null);
   const [progress, setProgress] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const acCount = useRef(0);
@@ -48,22 +43,23 @@ export function CalculatorExperience() {
     timers.current = [];
   }, []);
 
-  const requestClose = useCallback((from: ClosableStep) => {
-    clearTimers();
-    setCloseReturn(from);
-    setStep('exitFee');
-  }, [clearTimers]);
-
-  const startProcessing = useCallback(() => {
+  const startRidiculousProcessing = useCallback(() => {
     clearTimers();
     setProgress(0);
     setStep('processing');
-    timers.current = [
-      setTimeout(() => setProgress(1), 560),
-      setTimeout(() => setProgress(2), 1120),
-      setTimeout(() => setProgress(3), 1700),
-      setTimeout(() => setStep('error'), 2550),
-    ];
+
+    const stepDuration = 850;
+    const nextTimers: ReturnType<typeof setTimeout>[] = [];
+
+    for (let index = 1; index < PROCESSING_STEPS; index += 1) {
+      nextTimers.push(setTimeout(() => setProgress(index), index * stepDuration));
+    }
+
+    nextTimers.push(
+      setTimeout(() => setStep('paywall'), PROCESSING_STEPS * stepDuration + 350),
+    );
+
+    timers.current = nextTimers;
   }, [clearTimers]);
 
   const inputDigit = (digit: string) => {
@@ -101,10 +97,11 @@ export function CalculatorExperience() {
     setAwaitingValue(true);
   };
 
-  const revealPaywall = () => {
+  const calculateWithDrama = () => {
     if (leftValue === null || operator === null || awaitingValue) return;
     const rightValue = Number(display);
     if (!Number.isFinite(rightValue)) return;
+
     if (operator === '÷' && rightValue === 0) {
       setDisplay('Undefined');
       setLeftValue(null);
@@ -113,14 +110,17 @@ export function CalculatorExperience() {
       showToast('ဒီအဖြေက ကျွန်တော်တို့နဲ့ မဆိုင်တော့ပါဘူး။ အဆင့်မြင့် သင်္ချာပညာရှင်တစ်ဦးနှင့် ဆက်သွယ်ပါ။');
       return;
     }
+
     hiddenResult.current = calculate(leftValue, rightValue, operator);
     setExpression(`${leftValue} ${operator} ${display}`);
     setDisplay('အဖြေ: ██');
-    setStep('paywall');
+    startRidiculousProcessing();
   };
 
   const clearCalculator = () => {
     acCount.current += 1;
+    clearTimers();
+    setStep(null);
     setDisplay('0');
     setLeftValue(null);
     setOperator(null);
@@ -139,11 +139,9 @@ export function CalculatorExperience() {
     else setDisplay(display.length <= 1 ? '0' : display.slice(0, -1));
   };
 
-  useEffect(() => {
-    if (step !== 'discount') return;
-    const interval = setInterval(() => setCountdown((value) => value <= 0 ? 29 : value - 1), 1000);
-    return () => clearInterval(interval);
-  }, [step]);
+  const handleFakePayment = () => {
+    showToast('Parody Demo ဖြစ်တဲ့အတွက် တကယ် ငွေမဖြတ်ပါဘူး။ အဖြေကတော့ ၄ သိန်းတန်နေတုန်းပါပဲ။');
+  };
 
   useEffect(() => {
     document.body.style.overflow = step ? 'hidden' : '';
@@ -189,7 +187,7 @@ export function CalculatorExperience() {
             <button className={`calculator-key key-operator ${operator === '+' ? 'key-active' : ''}`} type="button" onClick={() => chooseOperator('+')}>+</button>
             <button className="calculator-key key-zero" type="button" onClick={() => inputDigit('0')}>0</button>
             <button className="calculator-key" type="button" onClick={inputDecimal}>.</button>
-            <button className="calculator-key key-equals" type="button" onClick={revealPaywall}>=</button>
+            <button className="calculator-key key-equals" type="button" onClick={calculateWithDrama}>=</button>
           </div>
         </div>
       </section>
@@ -197,13 +195,8 @@ export function CalculatorExperience() {
       <footer>Parody Demo — အမှန်တကယ် ငွေပေးချေမှု မပြုလုပ်ပါ။</footer>
 
       {toast ? <output className="calculator-toast">{toast}</output> : null}
-      {step === 'paywall' ? <ResultPaywall onClose={() => requestClose('paywall')} onUnlock={() => { setDiscounted(false); setStep('checkout'); }} onDecline={() => { setCountdown(29); setStep('discount'); }} /> : null}
-      {step === 'discount' ? <DiscountModal onClose={() => requestClose('discount')} countdown={countdown} onAccept={() => { setDiscounted(true); setStep('checkout'); }} onDecline={() => setStep('disposal')} /> : null}
-      {step === 'disposal' ? <AnswerDisposalModal onClose={() => requestClose('disposal')} onPay={startProcessing} onReturn={() => setStep('discount')} /> : null}
-      {step === 'exitFee' ? <ExitFeeModal onPay={startProcessing} onStay={() => setStep(closeReturn)} /> : null}
-      {step === 'checkout' ? <FakeCheckout onClose={() => requestClose('checkout')} discounted={discounted} onPay={startProcessing} /> : null}
       {step === 'processing' ? <ProcessingScreen progress={progress} expression={expression} /> : null}
-      {step === 'error' ? <PaymentError onClose={() => requestClose('error')} onRetry={startProcessing} onDiscount={() => { setCountdown(29); setStep('discount'); }} /> : null}
+      {step === 'paywall' ? <ResultPaywall onClose={() => setStep(null)} onUnlock={handleFakePayment} /> : null}
     </main>
   );
 }
